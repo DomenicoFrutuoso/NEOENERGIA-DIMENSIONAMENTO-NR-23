@@ -1,0 +1,255 @@
+Objetivo:
+Atualizar a tabela "NR23 Controle Nominal", preenchendo os valores ausentes na coluna "NR 23 CÓDIGO DA TURMA" com base nas turmas disponíveis na tabela "Cronograma de Turmas", garantindo também o saneamento do cronograma e a eliminação ou justificativa estruturada de todos os colaboradores sem turma.
+
+IMPORTANTE:
+O processo não deve terminar apenas informando colaboradores não vinculados.
+Caso existam colaboradores sem turma compatível, o sistema deve obrigatoriamente:
+1. tentar consolidar em turmas existentes;
+2. propor ou criar turmas planejadas quando houver demanda suficiente;
+3. registrar pendências residuais com ação objetiva;
+4. criar matriz de demanda por empresa, localidade e tipo de treinamento.
+
+Tabelas envolvidas:
+1. "NR23 Controle Nominal"
+2. "Cronograma de Turmas"
+
+Campo a atualizar:
+Na tabela "NR23 Controle Nominal", preencher somente as células vazias da coluna:
+"NR 23 CÓDIGO DA TURMA"
+
+Não sobrescrever códigos já existentes.
+
+Data de corte:
+Usar somente turmas com "DATA INÍCIO" posterior a 12/06/2026 para novos vínculos automáticos.
+
+Critérios para considerar uma turma existente como elegível:
+Usar apenas turmas da tabela "Cronograma de Turmas" que atendam simultaneamente a todos os critérios abaixo:
+
+1. "STATUS DA TURMA" original = "AGENDADO"
+2. "DATA INÍCIO" posterior a 12/06/2026
+3. "CÓDIGO DA TURMA" preenchido
+4. Capacidade final entre 10 e 20 colaboradores
+5. Empresa compatível
+6. Tipo de treinamento compatível:
+   - Formação com formação
+   - Reciclagem com reciclagem
+
+Antes de alterar a coluna "STATUS DA TURMA", criar a coluna:
+"STATUS DA TURMA ORIGINAL"
+
+Essa coluna deve preservar o valor original da coluna "STATUS DA TURMA" antes do saneamento.
+
+Regras de correlação para vincular colaborador à turma:
+Para cada colaborador listado na coluna "NOME COMPLETO" da tabela "NR23 Controle Nominal":
+
+1. Se "NR 23 CÓDIGO DA TURMA" já estiver preenchido, não alterar.
+2. Se estiver vazio:
+   a. Usar primeiro "LOCAL DO BRIGADISTA - PCI".
+   b. Se estiver vazio, usar "SUAREA".
+   c. Comparar empresa do colaborador com empresa da turma.
+   d. Comparar categoria do treinamento do colaborador com tipo da turma.
+   e. Usar correspondência exata de localidade quando possível.
+   f. Se não houver correspondência exata, usar tabela de equivalência de localidade.
+   g. Se não existir tabela de equivalência, gerar uma aba "DE_PARA_LOCALIDADES_SUGERIDO" com score de similaridade e usar somente correspondências de alta confiança.
+   h. Não vincular automaticamente se empresa, tipo ou localidade forem incoerentes.
+
+Regra obrigatória para evitar pendentes sem tratamento:
+Após a primeira tentativa de distribuição, identificar todos os colaboradores que permanecerem sem código de turma e criar a aba:
+"PENDENTES_DIMENSIONAMENTO_NR23"
+
+Essa aba deve conter:
+- linha original;
+- nome completo;
+- empresa;
+- localidade usada;
+- fonte da localidade: "LOCAL DO BRIGADISTA - PCI" ou "SUAREA";
+- categoria de treinamento;
+- tipo inferido: formação, reciclagem ou não identificado;
+- motivo da não vinculação;
+- turma existente mais próxima, se houver;
+- score de similaridade;
+- ação recomendada.
+
+Regra de matriz de demanda:
+Criar a aba:
+"MATRIZ_DEMANDA_NR23"
+
+Agrupar todos os colaboradores pendentes por:
+1. empresa;
+2. localidade base;
+3. tipo de treinamento.
+
+Para cada grupo, calcular:
+- quantidade de colaboradores pendentes;
+- existência de turma compatível próxima;
+- capacidade disponível em turmas existentes;
+- necessidade de nova turma;
+- ação recomendada.
+
+Regras para solucionar grupos pendentes:
+
+1. Se o grupo tiver 10 a 20 colaboradores:
+   - criar uma nova turma planejada na aba "Cronograma de Turmas";
+   - gerar código de turma padronizado;
+   - vincular os colaboradores a essa nova turma;
+   - marcar a turma como "OK" se tiver entre 10 e 20 colaboradores.
+
+2. Se o grupo tiver mais de 20 colaboradores:
+   - criar quantas turmas forem necessárias, com no máximo 20 colaboradores por turma;
+   - a última turma só deve ser criada se tiver pelo menos 10 colaboradores;
+   - se a sobra for menor que 10, tentar consolidar com turma próxima ou registrar como pendência manual.
+
+3. Se o grupo tiver entre 1 e 9 colaboradores:
+   - tentar consolidar com turma existente da mesma empresa e mesmo tipo;
+   - priorizar mesma localidade;
+   - se não houver, usar localidade próxima com correspondência confiável;
+   - se mesmo após consolidação não atingir mínimo de 10, não forçar vínculo;
+   - registrar como pendência manual com ação recomendada.
+
+4. Se não existir turma compatível e não houver volume mínimo para nova turma:
+   - não preencher código automaticamente;
+   - registrar na aba "PENDENTES_DIMENSIONAMENTO_NR23";
+   - indicar ação:
+     "CONVIDAR MAIS COLABORADORES OU CONSOLIDAR COM LOCALIDADE PRÓXIMA".
+
+Regra para criação de novas turmas planejadas:
+Quando for necessário criar nova turma, preencher na aba "Cronograma de Turmas":
+
+- EMPRESA
+- NR = "NR 23"
+- NOME DO TREINAMENTO conforme tipo:
+  - "NR 23 BRIGADA DE EMERGÊNCIA FORMAÇÃO"
+  - "NR 23 BRIGADA DE EMERGÊNCIA RECICLAGEM"
+- MODALIDADE = "100% PRESENCIAL"
+- TURMA /LOCALIDADE = localidade base do grupo
+- CÓDIGO DA TURMA = gerar código único padronizado
+- DATA INÍCIO = deixar em branco se não houver data definida, ou preencher como "A DEFINIR"
+- DATA FIM = deixar em branco se não houver data definida, ou preencher como "A DEFINIR"
+- STATUS DA TURMA ORIGINAL = "NOVA TURMA PLANEJADA"
+- STATUS DA TURMA = status final do saneamento
+- QTD COLABORADORES VINCULADOS
+- STATUS DE OCUPAÇÃO
+- AÇÃO RECOMENDADA
+- OBS SANEAMENTO
+
+Padrão para código de turma gerado:
+Usar:
+"NR23_" + empresa abreviada + "_" + localidade abreviada + "_" + tipo + "_" + número sequencial + "_2026"
+
+Exemplo:
+"NR23_COELBA_SEDE_FOR_01_2026"
+"NR23_EKT_CAMP_REC_02_2026"
+
+Se o código gerado já existir, incrementar o sequencial.
+
+Atenção:
+Se a data da nova turma não estiver definida, a turma criada deve ser classificada como "PLANEJAR DATA | DEFINIR DATA DA TURMA".
+Nesse caso, ainda assim os colaboradores podem ser vinculados, desde que a turma seja criada como planejada e sinalizada corretamente.
+
+Regras de capacidade e saneamento:
+Após a distribuição e eventual criação de turmas planejadas:
+
+1. Recalcular a quantidade de colaboradores vinculados a cada turma analisada.
+2. Nenhuma turma elegível ou planejada deve permanecer com "STATUS DA TURMA" = "AGENDADO" se tiver 0 colaboradores.
+3. Nenhuma turma elegível ou planejada deve permanecer com "STATUS DA TURMA" = "AGENDADO" se tiver entre 1 e 9 colaboradores.
+4. Nenhuma turma classificada como "OK" pode ter menos de 10 ou mais de 20 colaboradores.
+5. Nenhuma turma pode ultrapassar 20 colaboradores.
+
+Regra obrigatória para preenchimento da coluna "STATUS DA TURMA":
+
+1. Se a turma tiver 0 colaboradores:
+   "SEM PARTICIPANTES | CANCELAR TURMA OU REMANEJAR DEMANDA"
+
+2. Se a turma tiver entre 1 e 9 colaboradores:
+   "ABAIXO DO MÍNIMO | CONSOLIDAR COM TURMA PRÓXIMA OU CONVIDAR MAIS COLABORADORES"
+
+3. Se a turma tiver entre 10 e 20 colaboradores e data definida:
+   "OK"
+
+4. Se a turma tiver entre 10 e 20 colaboradores e data não definida:
+   "PLANEJAR DATA | DEFINIR DATA DA TURMA"
+
+5. Se a turma tiver mais de 20 colaboradores:
+   "ACIMA DO LIMITE | DIVIDIR EXCEDENTE EM OUTRA TURMA COMPATÍVEL"
+
+A coluna "STATUS DA TURMA" deve ser a principal coluna visual de acompanhamento.
+
+As colunas auxiliares devem ser:
+- "STATUS DA TURMA ORIGINAL"
+- "QTD COLABORADORES VINCULADOS"
+- "STATUS DE OCUPAÇÃO"
+- "AÇÃO RECOMENDADA"
+- "OBS SANEAMENTO"
+
+Criar ou atualizar a aba de auditoria:
+"SANEAMENTO_TURMAS_NR23"
+
+A aba deve conter:
+- total de turmas elegíveis existentes analisadas;
+- total de novas turmas planejadas criadas;
+- total de colaboradores sem código antes da atualização;
+- total de colaboradores vinculados em turmas existentes;
+- total de colaboradores vinculados em turmas planejadas;
+- total de colaboradores ainda pendentes após saneamento;
+- total de turmas com 0 colaboradores;
+- total de turmas com 1 a 9 colaboradores;
+- total de turmas entre 10 e 20 colaboradores;
+- total de turmas acima de 20 colaboradores;
+- lista de turmas zeradas;
+- lista de turmas abaixo do mínimo;
+- lista de turmas OK;
+- lista de turmas planejadas sem data;
+- lista de turmas acima do limite;
+- lista de colaboradores que não puderam ser vinculados;
+- motivo da não vinculação;
+- ação recomendada para cada pendência;
+- confirmação de que "STATUS DA TURMA" foi atualizado com a sinalização final.
+
+Validações obrigatórias antes da entrega:
+Executar validação em Python para garantir que:
+
+1. Nenhum código já existente foi sobrescrito.
+2. Todas as turmas existentes usadas para novo vínculo possuem:
+   - "STATUS DA TURMA ORIGINAL" = "AGENDADO"
+   - "DATA INÍCIO" posterior a 12/06/2026
+3. Novas turmas planejadas foram marcadas com:
+   - "STATUS DA TURMA ORIGINAL" = "NOVA TURMA PLANEJADA"
+4. Nenhuma turma analisada permaneceu com "STATUS DA TURMA" = "AGENDADO".
+5. Nenhuma turma "OK" possui menos de 10 ou mais de 20 colaboradores.
+6. Nenhuma turma possui mais de 20 colaboradores.
+7. Toda turma com 0 colaboradores contém:
+   "SEM PARTICIPANTES"
+   e
+   "CANCELAR TURMA OU REMANEJAR DEMANDA"
+8. Toda turma com 1 a 9 colaboradores contém:
+   "ABAIXO DO MÍNIMO"
+   e
+   "CONSOLIDAR COM TURMA PRÓXIMA OU CONVIDAR MAIS COLABORADORES"
+9. Toda turma planejada sem data contém:
+   "PLANEJAR DATA"
+   e
+   "DEFINIR DATA DA TURMA"
+10. Colaboradores não vinculados estão registrados na aba "PENDENTES_DIMENSIONAMENTO_NR23" com motivo e ação recomendada.
+11. A quantidade de pendentes informada na auditoria bate com a quantidade de linhas da aba "PENDENTES_DIMENSIONAMENTO_NR23".
+12. A coluna "STATUS DE OCUPAÇÃO" está coerente com "STATUS DA TURMA".
+13. A coluna "AÇÃO RECOMENDADA" está coerente com "STATUS DA TURMA".
+
+Entrega:
+Executar internamente em Python e fornecer uma nova planilha atualizada e saneada.
+
+A resposta final deve informar:
+1. quantidade de colaboradores atualizados em turmas existentes;
+2. quantidade de colaboradores atualizados em turmas planejadas;
+3. quantidade de colaboradores ainda pendentes;
+4. quantidade de turmas existentes analisadas;
+5. quantidade de novas turmas planejadas criadas;
+6. quantidade de turmas zeradas;
+7. quantidade de turmas abaixo do mínimo;
+8. quantidade de turmas OK;
+9. quantidade de turmas planejadas sem data;
+10. quantidade de turmas acima do limite;
+11. nome da aba de auditoria criada;
+12. nome da aba de pendências criada;
+13. confirmação de que "STATUS DA TURMA" foi atualizado com as sinalizações finais;
+14. confirmação de que "STATUS DA TURMA ORIGINAL" foi criada para preservar o status anterior;
+15. link para download da planilha final.
