@@ -132,10 +132,27 @@ O status é calculado com base na contagem exata de vínculos por `CÓDIGO DA TU
 
 ### Vinculação geográfica
 
-1. **Match exato** — busca turma na mesma localidade com vaga disponível
-2. **Fallback Haversine** — se não houver match, busca a turma mais próxima dentro do raio (`--raio-max`, padrão 50 km)
+O algoritmo avalia **todas as turmas elegíveis** e seleciona aquela cuja localidade está **geograficamente mais próxima** do colaborador:
 
-Turmas com data anterior a **12/06/2026** são preservadas: não recebem novos vínculos.
+1. Calcula a distância geodésica (Haversine) entre a localidade do colaborador e a de cada turma candidata
+2. Filtra turmas dentro do raio máximo (`--raio-max`, padrão 50 km)
+3. Escolhe a turma com **menor distância**; em empate, prioriza a de menor ocupação atual
+4. Match na mesma cidade resulta em distância 0 km (`MATCH EXATO`); demais casos são `PROXIMIDADE`
+
+### Filtro de data das turmas
+
+Colaboradores só são vinculados a turmas **futuras**:
+
+- **Elegíveis:** data >= amanhã (em relação à data de execução) ou sem data definida (em planejamento)
+- **Excluídas:** turmas com data de hoje, ontem ou qualquer data passada
+
+### Filtro de status das turmas
+
+Colaboradores só são vinculados a turmas cujo `STATUS DA TURMA` na planilha de entrada é **`AGENDADO`**.
+
+Turmas com qualquer outro status (ex.: `OK`, `PLANEJAR DATA`, `CANCELADO`) são ignoradas no dimensionamento.
+
+Turmas com data anterior a **12/06/2026** também são preservadas historicamente e não recebem novos vínculos.
 
 ### Conservação de dados
 

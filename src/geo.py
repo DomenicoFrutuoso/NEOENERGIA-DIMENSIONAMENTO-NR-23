@@ -67,3 +67,12 @@ def find_nearest_locality(
             melhor = (candidata, dist)
 
     return melhor
+
+
+def distance_between_localities(origem: object, destino: object) -> float | None:
+    """Distância em km entre duas localidades. None se coordenadas indisponíveis."""
+    coords_origem = get_coordinates(origem)
+    coords_destino = get_coordinates(destino)
+    if coords_origem is None or coords_destino is None:
+        return None
+    return distance_km(coords_origem, coords_destino)

@@ -39,6 +39,7 @@ cronograma = pd.DataFrame(
     {
         "CÓDIGO DA TURMA": [
             "TURMA-HIST-001",
+            "TURMA-HOJE-001",
             "TURMA-2026-001",
             "TURMA-2026-002",
             "TURMA-2026-003",
@@ -49,6 +50,7 @@ cronograma = pd.DataFrame(
         "LOCALIDADE": [
             "SALVADOR",
             "SALVADOR",
+            "SALVADOR",
             "RECIFE",
             "NATAL",
             "FEIRA DE SANTANA",
@@ -57,6 +59,7 @@ cronograma = pd.DataFrame(
         ],
         "DATA": [
             "10/05/2026",
+            pd.Timestamp.today().strftime("%d/%m/%Y"),
             "20/07/2026",
             "25/07/2026",
             "01/08/2026",
@@ -66,12 +69,13 @@ cronograma = pd.DataFrame(
         ],
         "STATUS DA TURMA": [
             "OK",
-            "PLANEJAR DATA",
-            "PLANEJAR DATA",
-            "PLANEJAR DATA",
-            "PLANEJAR DATA",
-            "PLANEJAR DATA",
-            "PLANEJAR DATA",
+            "OK",
+            "AGENDADO",
+            "AGENDADO",
+            "AGENDADO",
+            "AGENDADO",
+            "AGENDADO",
+            "AGENDADO",
         ],
     }
 )

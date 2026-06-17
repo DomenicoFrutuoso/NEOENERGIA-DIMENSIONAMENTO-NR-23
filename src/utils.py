@@ -29,6 +29,7 @@ COL_MOTIVO_PENDENCIA = "MOTIVO PENDÊNCIA"
 HISTORICAL_CUTOFF = pd.Timestamp("2026-06-12")
 MIN_VINCULOS = 10
 MAX_VINCULOS = 20
+STATUS_AGENDADO = "AGENDADO"
 
 
 def sanitize_string(value: object) -> str:
@@ -83,3 +84,9 @@ def parse_date(value: object) -> pd.Timestamp | pd.NaT:
         return pd.NaT
     parsed = pd.to_datetime(value, dayfirst=True, errors="coerce")
     return parsed
+
+
+def reference_tomorrow(data_referencia: pd.Timestamp | None = None) -> pd.Timestamp:
+    """Retorna a data de amanhã (início do dia) em relação à data de referência."""
+    base = data_referencia if data_referencia is not None else pd.Timestamp.today()
+    return base.normalize() + pd.Timedelta(days=1)
