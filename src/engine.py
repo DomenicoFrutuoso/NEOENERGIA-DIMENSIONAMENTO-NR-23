@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 
 import pandas as pd
 
-from src.geo import distance_between_localities
+from src.geo import configure_geocoding, distance_between_localities, get_resolver
 from src.utils import (
     COL_ACAO_RECOMENDADA,
     COL_CODIGO_TURMA,
@@ -16,6 +16,7 @@ from src.utils import (
     COL_MOTIVO_PENDENCIA,
     COL_NOME_COMPLETO,
     COL_STATUS_TURMA,
+    COL_SUAREA,
     COL_TURMA_LOCALIDADE,
     COL_VINCULOS,
     HISTORICAL_CUTOFF,
@@ -139,11 +140,16 @@ def _find_melhor_turma(
     localidade_colaborador: object,
     turmas: pd.DataFrame,
     raio_max_km: float,
+    context_colaborador: object | None = None,
 ) -> tuple[str, float, str] | None:
     candidatos: list[tuple[str, float, int]] = []
 
     for _, turma in turmas.iterrows():
-        distancia = distance_between_localities(localidade_colaborador, turma[COL_TURMA_LOCALIDADE])
+        distancia = distance_between_localities(
+            localidade_colaborador,
+            turma[COL_TURMA_LOCALIDADE],
+            context_origem=context_colaborador,
+        )
         if distancia is None or distancia > raio_max_km:
             continue
         codigo = str(turma[COL_CODIGO_TURMA]).strip()
@@ -155,7 +161,12 @@ def _find_melhor_turma(
 
     candidatos.sort(key=lambda item: (item[1], item[2]))
     codigo, distancia, _ = candidatos[0]
-    metodo = "MATCH EXATO" if distancia < 0.01 else "PROXIMIDADE"
+    if distancia < 0.01:
+        metodo = "MATCH EXATO"
+    elif get_resolver().use_online:
+        metodo = "PROXIMIDADE OSM"
+    else:
+        metodo = "PROXIMIDADE"
     return codigo, distancia, metodo
 
 
@@ -189,7 +200,8 @@ def _vincular_colaboradores(
             continue
 
         disponiveis = _turmas_com_vaga(turmas)
-        melhor = _find_melhor_turma(localidade, disponiveis, raio_max_km)
+        contexto = row.get(COL_SUAREA) if has_text(row.get(COL_SUAREA)) else None
+        melhor = _find_melhor_turma(localidade, disponiveis, raio_max_km, contexto)
 
         if melhor is None:
             pendentes.append(
@@ -255,16 +267,54 @@ def _vincular_colaboradores(
     return cols, saneamento, pendentes
 
 
+def _warmup_geocoding(
+    colaboradores: pd.DataFrame,
+    turmas: pd.DataFrame,
+    use_geocoding: bool,
+) -> dict[str, int]:
+    localidades: set[str] = set()
+    context_map: dict[str, str] = {}
+
+    for _, row in colaboradores.iterrows():
+        loc = row.get(COL_LOCALIDADE_USADA)
+        if not has_text(loc):
+            continue
+        texto = str(loc).strip()
+        localidades.add(texto)
+        if has_text(row.get(COL_SUAREA)):
+            context_map[sanitize_string(texto)] = str(row[COL_SUAREA]).strip()
+
+    for valor in turmas[COL_TURMA_LOCALIDADE].dropna():
+        if has_text(valor):
+            localidades.add(str(valor).strip())
+
+    resolver = configure_geocoding(use_online=use_geocoding)
+    return resolver.warmup(localidades, context_map)
+
+
 def run_engine(
     controle_nominal: pd.DataFrame,
     cronograma_turmas: pd.DataFrame,
     raio_max_km: float = 50.0,
     data_referencia: pd.Timestamp | None = None,
+    use_geocoding: bool = True,
 ) -> EngineResult:
     audit_log: list[str] = []
     amanha = reference_tomorrow(data_referencia)
     turmas = _prepare_turmas(cronograma_turmas, amanha)
     colaboradores = _prepare_colaboradores(controle_nominal)
+
+    geo_stats = _warmup_geocoding(colaboradores, turmas, use_geocoding)
+    if use_geocoding:
+        audit_log.append(
+            "Geocoding OpenStreetMap (gratuito, sem chave de API): "
+            f"online={geo_stats.get('online', 0)}, "
+            f"cache={geo_stats.get('cache', 0)}, "
+            f"estatico={geo_stats.get('static', 0)}, "
+            f"falhas={geo_stats.get('failed', 0)}"
+        )
+    else:
+        audit_log.append("Geocoding online desativado: apenas dicionario local e cache")
 
     audit_log.append("Localidade do colaborador: LOCAL DO BRIGADISTA - PCI, fallback SUAREA")
     audit_log.append(

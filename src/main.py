@@ -42,6 +42,11 @@ def saneamento(
         "--arquivo",
         help=f"Caminho alternativo para {CONTROLE_GERAL_FILE}.",
     ),
+    sem_geocoding: bool = typer.Option(
+        False,
+        "--sem-geocoding",
+        help="Desativa OpenStreetMap; usa apenas dicionario local e cache.",
+    ),
     output: Optional[Path] = typer.Option(
         None,
         "--output",
@@ -67,8 +72,21 @@ def saneamento(
     console.print(f"    Aba colaboradores: {len(df_controle)} linhas")
     console.print(f"    Aba cronograma: {len(df_cronograma)} linhas")
     console.print(f"  Raio máximo: [yellow]{raio_max:.0f} km[/yellow]")
+    geocoding_label = "desativado" if sem_geocoding else "OpenStreetMap (gratuito)"
+    console.print(f"  Geocoding: [yellow]{geocoding_label}[/yellow]")
 
-    result = run_engine(df_controle, df_cronograma, raio_max_km=raio_max)
+    if not sem_geocoding:
+        console.print(
+            "  [dim]Resolvendo coordenadas via OpenStreetMap "
+            "(pode levar alguns minutos na 1a execucao)...[/dim]"
+        )
+
+    result = run_engine(
+        df_controle,
+        df_cronograma,
+        raio_max_km=raio_max,
+        use_geocoding=not sem_geocoding,
+    )
 
     ok, msg = validate_conservation(df_controle, result)
     status_color = "green" if ok else "red"
@@ -129,8 +147,9 @@ def info() -> None:
             "    - STATUS DA TURMA (apenas AGENDADO recebe vínculos)\n\n"
             "Saída (outputs/):\n"
             "  • NR23_SANEADO_2026.xlsx\n\n"
-            "Regras: mín. 10 / máx. 20 por turma; proximidade geográfica; "
-            "turmas futuras (>= amanhã).",
+            "Regras: mín. 10 / máx. 20 por turma; proximidade geográfica (OSM);\n"
+            "turmas futuras (>= amanhã).\n"
+            "Use --sem-geocoding para modo offline (sem internet).",
             title="Informações",
             border_style="blue",
         )

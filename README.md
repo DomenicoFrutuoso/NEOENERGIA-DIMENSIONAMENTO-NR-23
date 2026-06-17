@@ -140,12 +140,30 @@ O status é calculado com base na contagem exata de vínculos por `CÓDIGO DA TU
 
 ### Vinculação geográfica
 
-O algoritmo avalia **todas as turmas elegíveis** e seleciona aquela cuja localidade está **geograficamente mais próxima** do colaborador:
+O algoritmo avalia **todas as turmas elegíveis** e seleciona aquela cuja localidade está **geograficamente mais próxima** do colaborador.
 
-1. Calcula a distância geodésica (Haversine) entre a localidade do colaborador e a de cada turma candidata
-2. Filtra turmas dentro do raio máximo (`--raio-max`, padrão 50 km)
-3. Escolhe a turma com **menor distância**; em empate, prioriza a de menor ocupação atual
-4. Match na mesma cidade resulta em distância 0 km (`MATCH EXATO`); demais casos são `PROXIMIDADE`
+**Geocodificação (padrão — sem API paga do Google):**
+
+1. Consulta cache local (`knowledge-base/geocache.json`)
+2. Consulta dicionário de cidades Neoenergia em `src/geo.py`
+3. Consulta **OpenStreetMap (Nominatim)** — gratuito, sem chave de API, similar ao Google Maps para coordenadas
+
+Na primeira execução com internet, localidades novas são resolvidas online e salvas em cache. Execuções seguintes são muito mais rápidas.
+
+```bash
+# Padrão: usa OpenStreetMap + cache
+python -m src.main saneamento
+
+# Modo offline: só dicionário local e cache já salvo
+python -m src.main saneamento --sem-geocoding
+```
+
+Critérios de seleção da turma:
+
+1. Calcula distância geodésica entre colaborador e cada turma candidata
+2. Filtra turmas dentro do raio (`--raio-max`, padrão 50 km)
+3. Escolhe a de **menor distância**; em empate, menor ocupação
+4. Localidade do colaborador: `LOCAL DO BRIGADISTA - PCI` → fallback `SUAREA` (usada também como contexto no geocoding)
 
 ### Filtro de data das turmas
 

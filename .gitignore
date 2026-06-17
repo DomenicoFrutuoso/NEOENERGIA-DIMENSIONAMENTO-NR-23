@@ -12,6 +12,7 @@ build/
 *.xlsx
 !knowledge-base/.gitkeep
 outputs/
+knowledge-base/geocache.json
 .DS_Store
 Thumbs.db
 .env
