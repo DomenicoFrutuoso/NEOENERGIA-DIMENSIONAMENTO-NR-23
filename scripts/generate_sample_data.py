@@ -41,7 +41,7 @@ controle.loc[0, "NR 23 CÓDIGO DA TURMA"] = "TURMA-HIST-001"
 
 cronograma = pd.DataFrame(
     {
-        "CÓDIGO DA TURMA": [
+        "NR": [
             "TURMA-HIST-001",
             "TURMA-HOJE-001",
             "TURMA-2026-001",
@@ -61,7 +61,7 @@ cronograma = pd.DataFrame(
             "CAMACARI",
             "OLINDA",
         ],
-        "DATA": [
+        "DATA INÍCIO": [
             "10/05/2026",
             pd.Timestamp.today().strftime("%d/%m/%Y"),
             "20/07/2026",

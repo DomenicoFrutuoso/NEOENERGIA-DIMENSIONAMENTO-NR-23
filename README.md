@@ -105,9 +105,9 @@ O arquivo `outputs/NR23_SANEADO_2026.xlsx` contém as abas:
 
 | Coluna | Obrigatória | Descrição |
 | --- | --- | --- |
-| `CÓDIGO DA TURMA` | Sim | Identificador único da turma |
+| `NR` | Sim | Código da turma (equivalente a CÓDIGO DA TURMA) |
 | `TURMA /LOCALIDADE` | Sim | Localidade da turma (match geográfico) |
-| `DATA` | Não | Data prevista do treinamento |
+| `DATA INÍCIO` | Não | Data de início do treinamento |
 | `STATUS DA TURMA` | Sim | Apenas `AGENDADO` recebe novos vínculos |
 
 ---

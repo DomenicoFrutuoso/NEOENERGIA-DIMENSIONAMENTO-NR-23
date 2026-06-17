@@ -24,7 +24,7 @@ COL_CODIGO_TURMA_NOMINAL = "NR 23 CÓDIGO DA TURMA"
 COL_LOCAL_PCI = "LOCAL DO BRIGADISTA - PCI"
 COL_SUAREA = "SUAREA"
 
-# Aba Cronograma de Turmas
+# Aba Cronograma de Turmas (nomes canônicos após normalização)
 COL_CODIGO_TURMA = "CÓDIGO DA TURMA"
 COL_TURMA_LOCALIDADE = "TURMA /LOCALIDADE"
 COL_STATUS_TURMA = "STATUS DA TURMA"
@@ -33,6 +33,12 @@ COL_ACAO_RECOMENDADA = "AÇÃO RECOMENDADA"
 COL_VINCULOS = "VÍNCULOS REAIS"
 COL_MOTIVO_PENDENCIA = "MOTIVO PENDÊNCIA"
 COL_LOCALIDADE_USADA = "LOCALIDADE USADA"
+
+# Aliases reais da planilha Controle Geral_NR23
+CRONOGRAMA_CODIGO_ALIASES = ("CÓDIGO DA TURMA", "NR")
+CRONOGRAMA_DATA_ALIASES = ("DATA INÍCIO", "DATA INICIO", "DATA")
+CRONOGRAMA_LOCALIDADE_ALIASES = ("TURMA /LOCALIDADE", "TURMA/LOCALIDADE")
+CRONOGRAMA_STATUS_ALIASES = ("STATUS DA TURMA",)
 
 HISTORICAL_CUTOFF = pd.Timestamp("2026-06-12")
 MIN_VINCULOS = 10
@@ -68,6 +74,70 @@ def resolve_localidade_colaborador(row: pd.Series) -> object:
     if has_text(row.get(COL_SUAREA)):
         return row[COL_SUAREA]
     return pd.NA
+
+
+def strip_column_names(df: pd.DataFrame) -> pd.DataFrame:
+    """Remove espaços extras dos cabeçalhos e descarta colunas sem nome."""
+    frame = df.copy()
+    new_cols: list[str] = []
+    for i, col in enumerate(frame.columns):
+        name = str(col).strip() if pd.notna(col) else ""
+        if not name or name.lower().startswith("unnamed"):
+            name = f"_DROP_{i}"
+        new_cols.append(name)
+    frame.columns = new_cols
+    drop_cols = [c for c in frame.columns if c.startswith("_DROP_")]
+    return frame.drop(columns=drop_cols, errors="ignore")
+
+
+def resolve_column(df: pd.DataFrame, candidates: tuple[str, ...], *, context: str) -> str:
+    """Localiza coluna por nome exato ou normalizado (sem acentos/caixa)."""
+    exact = {str(col).strip(): col for col in df.columns}
+    for candidate in candidates:
+        if candidate in exact:
+            return candidate
+    normalized = {sanitize_string(col): str(col).strip() for col in df.columns}
+    for candidate in candidates:
+        key = sanitize_string(candidate)
+        if key in normalized:
+            return normalized[key]
+    disponiveis = ", ".join(str(c) for c in df.columns)
+    raise ValueError(
+        f"Coluna obrigatória ausente em {context}. "
+        f"Esperada uma de: {', '.join(candidates)}. "
+        f"Colunas encontradas: {disponiveis}"
+    )
+
+
+def normalize_cronograma(df: pd.DataFrame) -> pd.DataFrame:
+    """Mapeia colunas reais do cronograma para os nomes canônicos do engine."""
+    frame = strip_column_names(df)
+    rename_map = {
+        resolve_column(frame, CRONOGRAMA_CODIGO_ALIASES, context="Cronograma de Turmas"): COL_CODIGO_TURMA,
+        resolve_column(frame, CRONOGRAMA_LOCALIDADE_ALIASES, context="Cronograma de Turmas"): COL_TURMA_LOCALIDADE,
+        resolve_column(frame, CRONOGRAMA_STATUS_ALIASES, context="Cronograma de Turmas"): COL_STATUS_TURMA,
+    }
+    try:
+        data_col = resolve_column(frame, CRONOGRAMA_DATA_ALIASES, context="Cronograma de Turmas")
+        rename_map[data_col] = COL_DATA_TURMA
+    except ValueError:
+        pass
+    return frame.rename(columns=rename_map)
+
+
+def normalize_controle_nominal(df: pd.DataFrame) -> pd.DataFrame:
+    """Normaliza cabeçalhos da aba de colaboradores."""
+    frame = strip_column_names(df)
+    resolve_column(frame, (COL_NOME_COMPLETO,), context="NR23 Controle Nominal")
+    if sanitize_string(COL_CODIGO_TURMA_NOMINAL) not in {sanitize_string(c) for c in frame.columns}:
+        raise ValueError(
+            f"Coluna obrigatória ausente em NR23 Controle Nominal: {COL_CODIGO_TURMA_NOMINAL}"
+        )
+    # Renomeia para o nome canônico se vier com variação de espaço/acento
+    for col in frame.columns:
+        if sanitize_string(col) == sanitize_string(COL_CODIGO_TURMA_NOMINAL) and col != COL_CODIGO_TURMA_NOMINAL:
+            frame = frame.rename(columns={col: COL_CODIGO_TURMA_NOMINAL})
+    return frame
 
 
 def ensure_directories() -> None:
@@ -107,8 +177,8 @@ def load_controle_geral(path: Path) -> tuple[pd.DataFrame, pd.DataFrame]:
             f"Abas encontradas: {abas}"
         )
 
-    controle = pd.read_excel(workbook, sheet_name=SHEET_CONTROLE_NOMINAL)
-    cronograma = pd.read_excel(workbook, sheet_name=SHEET_CRONOGRAMA)
+    controle = normalize_controle_nominal(pd.read_excel(workbook, sheet_name=SHEET_CONTROLE_NOMINAL))
+    cronograma = normalize_cronograma(pd.read_excel(workbook, sheet_name=SHEET_CRONOGRAMA))
     return controle, cronograma
 
 

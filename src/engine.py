@@ -77,9 +77,12 @@ def _prepare_turmas(df: pd.DataFrame, amanha: pd.Timestamp) -> pd.DataFrame:
     turmas = df.copy()
     for col in (COL_CODIGO_TURMA, COL_TURMA_LOCALIDADE, COL_STATUS_TURMA):
         if col not in turmas.columns:
-            raise ValueError(f"Coluna obrigatória ausente no cronograma de turmas: {col}")
+            raise ValueError(f"Coluna interna ausente após normalização do cronograma: {col}")
     if COL_DATA_TURMA not in turmas.columns:
         turmas[COL_DATA_TURMA] = pd.NaT
+    turmas[COL_CODIGO_TURMA] = turmas[COL_CODIGO_TURMA].apply(
+        lambda v: str(v).strip() if has_text(v) else pd.NA
+    )
     turmas[COL_VINCULOS] = 0
     turmas["_LOCALIDADE_NORM"] = turmas[COL_TURMA_LOCALIDADE].apply(sanitize_string)
     turmas["_STATUS_ENTRADA"] = turmas[COL_STATUS_TURMA].apply(sanitize_string)
