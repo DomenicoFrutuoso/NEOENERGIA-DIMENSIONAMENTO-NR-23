@@ -1,147 +1,224 @@
-Como sou um modelo de inteligência artificial, não consigo forçar o download direto de um arquivo para a sua máquina. No entanto, gerei o conteúdo completo e formatado abaixo.
+# NR23 CLI Engine
 
-Você só precisa criar um arquivo chamado `DEVELOPMENT.md` (ou `README.md`) na raiz do seu projeto e colar o bloco de texto a seguir. Este documento foi escrito com foco estrito em **engenharia e desenvolvimento**, servindo como um guia definitivo para qualquer desenvolvedor que vá assumir, manter ou escalar o código.
+Utilitário de linha de comando (CLI) em Python para saneamento de dados de RH, processamento geoespacial em memória e dimensionamento de turmas de treinamento normativo (NR-23).
 
----
-
-```markdown
-# 🛠️ NR23 CLI Engine — Guia de Desenvolvimento
-
-Este documento é destinado a engenheiros de software, cientistas de dados e desenvolvedores que atuarão na manutenção, extensão ou refatoração do **NR23 CLI Engine**. 
-
-O sistema é um utilitário de interface de linha de comando (CLI) em Python focado em engenharia de dados. Ele executa o saneamento de dados de RH, processamento geoespacial em memória e aplicação de algoritmos de roteirização e regras rígidas de capacidade (min/max) para enturmação em treinamentos normativos.
+O sistema lê planilhas Excel da pasta `knowledge-base/`, aplica regras de capacidade e vinculação geográfica, e gera um arquivo consolidado em `outputs/`.
 
 ---
 
-## 🏗️ Arquitetura do Sistema
+## Requisitos
 
-O projeto adota uma arquitetura de scripts modulares (ETL/CLI), separando a camada de apresentação no terminal da lógica de negócios e dos cálculos matemáticos/geográficos. 
-
-O banco de dados é substituído por manipulação direta de arquivos no File System local (`knowledge-base/` para _Input_ e `outputs/` para _Output_), utilizando o motor vetorial do Pandas para garantir alta performance no processamento em memória.
-
-### 🗂️ Árvore de Diretórios
-
-```text
-nr23-cli-engine/
-│
-├── knowledge-base/             # (Input) Planilhas originais em formato .xlsx
-│   ├── nr23_controle_nominal.xlsx
-│   └── cronograma_turmas.xlsx
-│
-├── outputs/                    # (Output) Artefatos processados pelo engine
-│   └── NR23_SANEADO_2026.xlsx
-│
-├── src/                        # Código-fonte principal
-│   ├── __init__.py
-│   ├── main.py                 # Camada de Apresentação CLI (Rotas do Typer)
-│   ├── engine.py               # Core Domain (Regras de negócio e Pandas ETL)
-│   ├── geo.py                  # Cálculos de Haversine e Dicionários de Coordenadas
-│   └── utils.py                # Helpers (I/O de arquivos, sanitização de strings)
-│
-├── .gitignore                  # Ignorar outputs/, knowledge-base/ (se sensível) e venv
-├── requirements.txt            # Dependências fixadas do projeto
-└── DEVELOPMENT.md              # Este documento
-
-```
+- Python 3.11 ou superior
+- Dependências listadas em `requirements.txt`
 
 ---
 
-## 💻 Setup do Ambiente de Desenvolvimento
-
-Para garantir a paridade de ambiente, utilize o Python 3.11 ou superior e isole as dependências em um ambiente virtual.
-
-**1. Clonar e preparar o ambiente virtual:**
+## Instalação
 
 ```bash
 python -m venv venv
 
 # Windows
 venv\Scripts\activate
-# Linux/MacOS
+
+# Linux/macOS
 source venv/bin/activate
 
+pip install -r requirements.txt
 ```
 
-**2. Instalar dependências:**
+### Dependências principais
+
+| Pacote | Função |
+| --- | --- |
+| `pandas` + `openpyxl` | ETL e leitura/escrita de planilhas |
+| `geopy` | Distância geodésica (Haversine) entre localidades |
+| `typer` + `rich` | Interface CLI com tabelas e formatação |
+
+---
+
+## Uso rápido
+
+### 1. Preparar os arquivos de entrada
+
+Coloque as planilhas em `knowledge-base/`:
+
+- `nr23_controle_nominal.xlsx` — colaboradores e localidades
+- `cronograma_turmas.xlsx` — turmas, datas e status
+
+Para gerar dados de exemplo para testes locais:
 
 ```bash
-pip install -r requirements.txt
-
+python scripts/generate_sample_data.py
 ```
 
-> **Nota sobre Dependências Principais:**
-> * `pandas` & `openpyxl`: Motor principal de ETL.
-> * `geopy`: Responsável pela métrica de distância `geodesic` (Haversine).
-> * `typer` & `rich`: Frameworks de CLI. O Typer lida com o parse de argumentos e o Rich provê a interface visual (cores, tabelas, progress bars).
-> 
-> 
+### 2. Executar o saneamento
+
+```bash
+python -m src.main saneamento
+```
+
+### 3. Opções disponíveis
+
+```bash
+# Alterar raio máximo de vinculação geográfica (padrão: 50 km)
+python -m src.main saneamento --raio-max 80
+
+# Caminhos customizados
+python -m src.main saneamento \
+  --controle caminho/controle.xlsx \
+  --cronograma caminho/cronograma.xlsx \
+  --output caminho/saida.xlsx
+
+# Ver informações do engine
+python -m src.main info
+```
+
+### 4. Saída gerada
+
+O arquivo `outputs/NR23_SANEADO_2026.xlsx` contém as abas:
+
+| Aba | Conteúdo |
+| --- | --- |
+| `COLABORADORES_SANEADOS` | Colaboradores com vínculos atualizados |
+| `CRONOGRAMA_ATUALIZADO` | Turmas com status e contagem de vínculos |
+| `SANEAMENTO_TURMAS_NR23` | Auditoria de turmas (debug para RH) |
+| `VINCULACOES_REALIZADAS` | Log de cada vinculação (método e distância) |
+| `PENDENTES_DIMENSIONAMENTO_NR23` | Colaboradores sem turma atribuída |
 
 ---
 
-## 🧠 Core Domain: Regras de Negócio Estritas
+## Formato das planilhas de entrada
 
-Ao alterar o arquivo `src/engine.py`, você deve respeitar o seguinte pipeline de estado da máquina:
+### `nr23_controle_nominal.xlsx`
 
-### 1. Limites de Capacidade (Hard Limits)
-
-Nenhuma turma pode ser salva com o estado `OK` ou `PLANEJAR DATA` se não respeitar a restrição matemática:
-
-* **Min:** 10 colaboradores vinculados.
-* **Max:** 20 colaboradores vinculados.
-
-### 2. Mutação de Status de Ocupação
-
-O algoritmo deve atualizar as turmas *in-place* na memória baseando-se na contagem exata (Count) de vínculos associados ao `CÓDIGO DA TURMA`.
-
-| Vínculos Reais | Status da Turma | Ação Recomendada |
+| Coluna | Obrigatória | Descrição |
 | --- | --- | --- |
-| **0** | `SEM PARTICIPANTES` | Cancelar Turma ou Remanejar Demanda |
-| **1 a 9** | `ABAIXO DO MÍNIMO` | Consolidar ou Convidar Colaboradores |
-| **10 a 20** | `OK` (se houver data) ou `PLANEJAR DATA` | Manter Cronograma ou Definir Data |
-| **> 20** | `ACIMA DO LIMITE` | Dividir Excedente |
+| `ID COLABORADOR` | Sim | Identificador único do colaborador |
+| `LOCALIDADE` | Sim | Cidade/base do colaborador |
+| `NOME` | Não | Nome do colaborador |
+| `CÓDIGO DA TURMA` | Não | Vínculo existente (se já houver) |
 
-### 3. Mecanismo de Fallback Geográfico (`src/geo.py`)
+### `cronograma_turmas.xlsx`
 
-A vinculação tenta primeiramente um *match exato* na localidade. Se falhar, calcula a distância em linha reta (Haversine) baseada em latitude/longitude.
-
-* **Parâmetro dinâmico:** O `--raio-max` é injetado via CLI (padrão 50km).
-* **Atenção:** Se adicionar novas localidades à base de dados da empresa, é estritamente necessário atualizar o dicionário de coordenadas no módulo `geo.py`.
+| Coluna | Obrigatória | Descrição |
+| --- | --- | --- |
+| `CÓDIGO DA TURMA` | Sim | Identificador único da turma |
+| `LOCALIDADE` | Sim | Cidade/base da turma |
+| `DATA` | Não | Data prevista do treinamento |
+| `STATUS DA TURMA` | Sim | Status inicial (atualizado pelo engine) |
 
 ---
 
-## 🚀 Padrões de Extensão e Contribuição
+## Regras de negócio
 
-### Adicionando Novos Comandos na CLI
+### Limites de capacidade
 
-A CLI é gerenciada pelo Typer em `src/main.py`. Para registrar uma nova rotina (ex: gerar um relatório analítico separado), adicione o decorator `@app.command()`:
+Nenhuma turma recebe status `OK` ou `PLANEJAR DATA` fora da faixa permitida:
+
+- **Mínimo:** 10 colaboradores vinculados
+- **Máximo:** 20 colaboradores vinculados
+
+### Status das turmas
+
+O status é calculado com base na contagem exata de vínculos por `CÓDIGO DA TURMA`:
+
+| Vínculos | Status | Ação recomendada |
+| --- | --- | --- |
+| 0 | `SEM PARTICIPANTES` | Cancelar turma ou remanejar demanda |
+| 1 a 9 | `ABAIXO DO MÍNIMO` | Consolidar ou convidar colaboradores |
+| 10 a 20 | `OK` (com data) ou `PLANEJAR DATA` (sem data) | Manter cronograma ou definir data |
+| > 20 | `ACIMA DO LIMITE` | Dividir excedente |
+
+### Vinculação geográfica
+
+1. **Match exato** — busca turma na mesma localidade com vaga disponível
+2. **Fallback Haversine** — se não houver match, busca a turma mais próxima dentro do raio (`--raio-max`, padrão 50 km)
+
+Turmas com data anterior a **12/06/2026** são preservadas: não recebem novos vínculos.
+
+### Conservação de dados
+
+O total de colaboradores na entrada deve ser igual a:
+
+```
+vinculados + pendentes = total de entrada
+```
+
+Nenhum ID pode desaparecer no processamento.
+
+---
+
+## Arquitetura
+
+```text
+NEOENERGIA-DIMENSIONAMENTO-NR-23/
+│
+├── knowledge-base/             # Entrada — planilhas .xlsx
+│   ├── nr23_controle_nominal.xlsx
+│   └── cronograma_turmas.xlsx
+│
+├── outputs/                    # Saída — artefatos processados
+│   └── NR23_SANEADO_2026.xlsx
+│
+├── scripts/
+│   └── generate_sample_data.py # Gera planilhas de exemplo
+│
+├── src/
+│   ├── main.py                 # CLI (Typer)
+│   ├── engine.py               # Regras de negócio e ETL
+│   ├── geo.py                  # Coordenadas e distância geodésica
+│   └── utils.py                # I/O, sanitização e constantes
+│
+├── requirements.txt
+├── pyproject.toml
+└── README.md
+```
+
+O processamento é feito inteiramente em memória com Pandas — não há banco de dados. A camada CLI (`main.py`) é separada da lógica de domínio (`engine.py`) e dos cálculos geográficos (`geo.py`).
+
+---
+
+## Desenvolvimento
+
+### Adicionar novos comandos CLI
+
+Registre novos comandos em `src/main.py` com o decorator `@app.command()`:
 
 ```python
 @app.command()
 def gerar_relatorio_cidades():
     """Gera um heatmap de colaboradores por cidade."""
     console.print("[cyan]Processando relatório espacial...[/cyan]")
-    # Inserir lógica de integração com o engine.py
-
+    # Integrar com engine.py
 ```
 
-### Lidando com DataFrames do Pandas
+### Adicionar localidades
 
-* **Não itere linhas a menos que seja estritamente necessário:** O loop `.iterrows()` é custoso. Onde for possível, prefira filtros vetoriais do Pandas. No entanto, para o cálculo de capacidade que diminui em tempo real (estado compartilhado iterativo), o loop atual em `engine.py` é a solução de engenharia aceitável, dado que a volumetria de planilhas locais costuma ser menor que o limite de gargalo da CPU.
-* **Manejo de NaNs:** Atenção redobrada ao comparar localidades (strings) que podem vir como `NaN` do Excel. Utilize `pd.notna()` antes de injetar nas funções de sanitização.
+Ao incluir novas cidades na base da empresa, atualize o dicionário `COORDENADAS` em `src/geo.py`:
 
-### Manutenção da Auditoria
-
-Toda alteração que envolver exclusão ou mudança massiva de dados deve gerar registros nas abas analíticas geradas no output final (`SANEAMENTO_TURMAS_NR23` e `PENDENTES_DIMENSIONAMENTO_NR23`). Estas abas são a principal forma de depuração (debug visual) da liderança de RH.
-
----
-
-## 🧪 Validações de Fluxo (Sanity Checks)
-
-Antes de fazer o push de uma alteração significativa, rode o script localmente num dataset de testes garantindo que:
-
-1. Nenhum código de turma existente anterior a `12/06/2026` foi sobrescrito (preservação histórica).
-2. O total de colaboradores no `.xlsx` de entrada é exatamente igual à soma de: `(colaboradores vinculados)` + `(colaboradores pendentes)` no arquivo gerado no output. Não pode haver sumiço de IDs.
-
+```python
+COORDENADAS = {
+    "NOVA CIDADE": (-12.0000, -38.0000),
+    # ...
+}
 ```
 
+### Boas práticas com Pandas
+
+- Prefira operações vetoriais a `.iterrows()` sempre que possível
+- O loop iterativo em `engine.py` é intencional: a capacidade das turmas muda a cada vinculação
+- Use `pd.notna()` antes de comparar localidades que podem vir como `NaN` do Excel
+
+### Validações antes de commit
+
+Execute localmente com um dataset de testes e verifique:
+
+1. Turmas anteriores a `12/06/2026` não tiveram vínculos alterados
+2. A conservação de colaboradores está correta (entrada = vinculados + pendentes)
+3. Nenhuma turma com status `OK` ou `PLANEJAR DATA` está fora da faixa 10–20 vínculos
+
+```bash
+python scripts/generate_sample_data.py
+python -m src.main saneamento
 ```

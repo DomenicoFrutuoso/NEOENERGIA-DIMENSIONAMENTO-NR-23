@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "nr23-cli-engine"
+version = "1.0.0"
+description = "CLI para saneamento de RH e dimensionamento de turmas NR-23"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "pandas>=2.2.0,<3.0.0",
+    "openpyxl>=3.1.0,<4.0.0",
+    "geopy>=2.4.0,<3.0.0",
+    "typer>=0.12.0,<1.0.0",
+    "rich>=13.7.0,<14.0.0",
+]
+
+[project.scripts]
+nr23 = "src.main:app"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*"]

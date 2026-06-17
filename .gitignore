@@ -1,0 +1,17 @@
+venv/
+.venv/
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.xlsx
+!knowledge-base/.gitkeep
+outputs/
+.DS_Store
+Thumbs.db
+.env
