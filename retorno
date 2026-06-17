@@ -1,0 +1,45 @@
+colunas da tabela 'Cronograma de Turmas':
+EMPRESA	NR	NOME DO TREINAMENTO	TURMA /LOCALIDADE	DATA INÍCIO	DATA FIM	STATUS DA TURMA		C. H.	HORÁRIO	ALVO	C.H. TOTAL	VALOR	STATUS PAGAMENTO	OBS	FORNECEDOR	CONFIRMAÇÃO ESPAÇO DAS UTDs?	CONVITES ENVIADOS?	DADOS DOS PART. ENVIADOS?	LISTA DE PRESENÇA RECEBIDA?	CERTIFICADOS EMITIDOS?	ATESTADOS EMITIDOS?	 ENDEREÇO 	 OBSERVAÇÃO 
+
+colunas da tabela 'NR23 Controle Nominal':
+EMPRESA REAL	EMPRESA FOLHA	EMPRESA | COLABORADOR	CPF	MATRÍCULA LOCAL	MATRÍCULA IBD	NOME COMPLETO	DATA ADM	SITUAÇÃO 	NR 23 ELEGIBILIDADE	NR 23 PENÚLTIMO REGISTRO (HISTÓRICO)	NR 23 DATA ÚLTIMO REGISTRO	NR 23 DATA TEORIA	NR 23 DATA PRÁTICA	NR 23 SITUAÇÃO ETAPA DO TREINAMENTO	CATEGORIA DE TREINAMENTO 2026	NR 23 PRAZO DE RECICLAGEM (ANOS)	NR 23 DATA DE VENCIMENTO	NR 23 MÊS VENCIMENTO 2026	NR 23 MÊS PLANEJADO 2026	NR 23 MÊS REALIZADO 2026	NR 23 STATUS COLABORADOR FECHAMENTO MÊS	NR 23 STATUS COLABORADOR FECHAMENTO DIA	NR23 OBSERVAÇÃO	NR 23 CÓDIGO DA TURMA	NR 23 LOCALIDADE DA TURMA	NR 23 DATA INÍCIO DA TURMA	NR 23 DATA FIM DA TURMA	NR 23 STATUS DA TURMA	NR 23 CONFIRMAÇÃO COLABORADOR	POSICAO 	LOCAL DO BRIGADISTA - PCI	SUAREA	UNID ORGANIZAC DESCRICAO	NOME GESTOR IMEDIATO	CONSULTORA RH	E-MAIL	ATUALIZAÇÃO PCI
+
+  Arquivo: Controle Geral_NR23.xlsx
+    Aba colaboradores: 1579 linhas
+    Aba cronograma: 159 linhas
+  Raio máximo: 50 km
+╭───────────────────────────────────────── Traceback (most recent call last) ──────────────────────────────────────────╮
+│ C:\Users\b624187\Downloads\NEOENERGIA-DIMENSIONAMENTO-NR-23-main                                                     │
+│ (1)\NEOENERGIA-DIMENSIONAMENTO-NR-23-main\src\main.py:71 in saneamento                                               │
+│                                                                                                                      │
+│    68 │   console.print(f"    Aba cronograma: {len(df_cronograma)} linhas")                                          │
+│    69 │   console.print(f"  Raio máximo: [yellow]{raio_max:.0f} km[/yellow]")                                        │
+│    70 │                                                                                                              │
+│ ❱  71 │   result = run_engine(df_controle, df_cronograma, raio_max_km=raio_max)                                      │
+│    72 │                                                                                                              │
+│    73 │   ok, msg = validate_conservation(df_controle, result)                                                       │
+│    74 │   status_color = "green" if ok else "red"                                                                    │
+│                                                                                                                      │
+│ C:\Users\b624187\Downloads\NEOENERGIA-DIMENSIONAMENTO-NR-23-main                                                     │
+│ (1)\NEOENERGIA-DIMENSIONAMENTO-NR-23-main\src\engine.py:263 in run_engine                                            │
+│                                                                                                                      │
+│   260 ) -> EngineResult:                                                                                             │
+│   261 │   audit_log: list[str] = []                                                                                  │
+│   262 │   amanha = reference_tomorrow(data_referencia)                                                               │
+│ ❱ 263 │   turmas = _prepare_turmas(cronograma_turmas, amanha)                                                        │
+│   264 │   colaboradores = _prepare_colaboradores(controle_nominal)                                                   │
+│   265 │                                                                                                              │
+│   266 │   audit_log.append("Localidade do colaborador: LOCAL DO BRIGADISTA - PCI, fallback SUA                       │
+│                                                                                                                      │
+│ C:\Users\b624187\Downloads\NEOENERGIA-DIMENSIONAMENTO-NR-23-main                                                     │
+│ (1)\NEOENERGIA-DIMENSIONAMENTO-NR-23-main\src\engine.py:80 in _prepare_turmas                                        │
+│                                                                                                                      │
+│    77 │   turmas = df.copy()                                                                                         │
+│    78 │   for col in (COL_CODIGO_TURMA, COL_TURMA_LOCALIDADE, COL_STATUS_TURMA):                                     │
+│    79 │   │   if col not in turmas.columns:                                                                          │
+│ ❱  80 │   │   │   raise ValueError(f"Coluna obrigatória ausente no cronograma de turmas: {col}                       │
+│    81 │   if COL_DATA_TURMA not in turmas.columns:                                                                   │
+│    82 │   │   turmas[COL_DATA_TURMA] = pd.NaT                                                                        │
+│    83 │   turmas[COL_VINCULOS] = 0                                                                                   │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+ValueError: Coluna obrigatória ausente no cronograma de turmas: CÓDIGO DA TURMA
