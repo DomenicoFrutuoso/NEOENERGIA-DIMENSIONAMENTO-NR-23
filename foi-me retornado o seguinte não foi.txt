@@ -1,0 +1,3 @@
+foi-me retornado o seguinte "não foi encontrado o arquivo cronograma_turmas.xlsx" pois o único arquivo analisado será a planilha cujo o nome é "Controle Geral_NR23" 
+
+preciso que os colaboradores da coluna 'NOME COMPLETO' localizados na tabela 'NR23 Controle Nominal' que possuem células vazias na coluna 'NR 23 CÓDIGO DA TURMA' sejam correlacionados à um código da turma segundo seu 'LOCAL DO BRIGADISTA - PCI'(se não tiver nenhuma informação na coluna '' use a coluna 'SUAREA' frente 'TURMA /LOCALIDADE'(se não tiver a localidade exata do colaborador pode ser a localidade mais próxima dele) e 'CÓDIGO DA TURMA' que consta na tabela 'Cronograma de Turmas'
