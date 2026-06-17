@@ -43,7 +43,7 @@ pip install -r requirements.txt
 
 Coloque as planilhas em `knowledge-base/`:
 
-- `nr23_controle_nominal.xlsx` — colaboradores e localidades
+- `Controle Geral_NR23.xlsx` — colaboradores e localidades
 - `cronograma_turmas.xlsx` — turmas, datas e status
 
 Para gerar dados de exemplo para testes locais:
@@ -90,7 +90,7 @@ O arquivo `outputs/NR23_SANEADO_2026.xlsx` contém as abas:
 
 ## Formato das planilhas de entrada
 
-### `nr23_controle_nominal.xlsx`
+### `Controle Geral_NR23.xlsx`
 
 | Coluna | Obrigatória | Descrição |
 | --- | --- | --- |
@@ -172,7 +172,7 @@ Nenhum ID pode desaparecer no processamento.
 NEOENERGIA-DIMENSIONAMENTO-NR-23/
 │
 ├── knowledge-base/             # Entrada — planilhas .xlsx
-│   ├── nr23_controle_nominal.xlsx
+│   ├── Controle Geral_NR23.xlsx
 │   └── cronograma_turmas.xlsx
 │
 ├── outputs/                    # Saída — artefatos processados

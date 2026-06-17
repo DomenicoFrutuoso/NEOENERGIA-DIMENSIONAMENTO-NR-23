@@ -12,7 +12,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 KNOWLEDGE_BASE_DIR = PROJECT_ROOT / "knowledge-base"
 OUTPUTS_DIR = PROJECT_ROOT / "outputs"
 
-CONTROLE_NOMINAL_FILE = "nr23_controle_nominal.xlsx"
+CONTROLE_NOMINAL_FILE = "Controle Geral_NR23.xlsx"
 CRONOGRAMA_TURMAS_FILE = "cronograma_turmas.xlsx"
 OUTPUT_FILE = "NR23_SANEADO_2026.xlsx"
 

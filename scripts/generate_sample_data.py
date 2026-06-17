@@ -10,7 +10,7 @@ import pandas as pd
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from src.utils import KNOWLEDGE_BASE_DIR, ensure_directories
+from src.utils import CONTROLE_NOMINAL_FILE, KNOWLEDGE_BASE_DIR, ensure_directories
 
 ensure_directories()
 
@@ -80,7 +80,7 @@ cronograma = pd.DataFrame(
     }
 )
 
-controle_path = KNOWLEDGE_BASE_DIR / "nr23_controle_nominal.xlsx"
+controle_path = KNOWLEDGE_BASE_DIR / CONTROLE_NOMINAL_FILE
 cronograma_path = KNOWLEDGE_BASE_DIR / "cronograma_turmas.xlsx"
 
 controle.to_excel(controle_path, index=False, engine="openpyxl")

@@ -40,7 +40,7 @@ def saneamento(
     controle: Optional[Path] = typer.Option(
         None,
         "--controle",
-        help="Caminho alternativo para nr23_controle_nominal.xlsx.",
+        help="Caminho alternativo para Controle Geral_NR23.xlsx.",
     ),
     cronograma: Optional[Path] = typer.Option(
         None,
@@ -118,7 +118,7 @@ def info() -> None:
         Panel(
             "[bold]NR23 CLI Engine[/bold]\n\n"
             "Entrada (knowledge-base/):\n"
-            "  • nr23_controle_nominal.xlsx — colaboradores e localidades\n"
+            "  • Controle Geral_NR23.xlsx — colaboradores e localidades\n"
             "  • cronograma_turmas.xlsx — turmas, datas e status\n\n"
             "Saída (outputs/):\n"
             "  • NR23_SANEADO_2026.xlsx — abas de saneamento e auditoria\n\n"
