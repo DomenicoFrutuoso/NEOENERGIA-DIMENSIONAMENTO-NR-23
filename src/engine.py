@@ -10,20 +10,23 @@ from src.geo import distance_between_localities
 from src.utils import (
     COL_ACAO_RECOMENDADA,
     COL_CODIGO_TURMA,
+    COL_CODIGO_TURMA_NOMINAL,
     COL_DATA_TURMA,
-    COL_ID_COLABORADOR,
-    COL_LOCALIDADE,
+    COL_LOCALIDADE_USADA,
     COL_MOTIVO_PENDENCIA,
-    COL_NOME_COLABORADOR,
+    COL_NOME_COMPLETO,
     COL_STATUS_TURMA,
+    COL_TURMA_LOCALIDADE,
     COL_VINCULOS,
     HISTORICAL_CUTOFF,
     MAX_VINCULOS,
     MIN_VINCULOS,
     STATUS_AGENDADO,
+    has_text,
     has_vinculo,
     parse_date,
     reference_tomorrow,
+    resolve_localidade_colaborador,
     sanitize_string,
 )
 
@@ -64,7 +67,6 @@ def _is_historical(row: pd.Series) -> bool:
 
 
 def _is_elegivel_por_data(row: pd.Series, amanha: pd.Timestamp) -> bool:
-    """Turma elegível se sem data (planejamento) ou com data >= amanhã."""
     data = parse_date(row.get(COL_DATA_TURMA))
     if pd.isna(data):
         return True
@@ -73,13 +75,13 @@ def _is_elegivel_por_data(row: pd.Series, amanha: pd.Timestamp) -> bool:
 
 def _prepare_turmas(df: pd.DataFrame, amanha: pd.Timestamp) -> pd.DataFrame:
     turmas = df.copy()
-    for col in (COL_CODIGO_TURMA, COL_LOCALIDADE, COL_STATUS_TURMA):
+    for col in (COL_CODIGO_TURMA, COL_TURMA_LOCALIDADE, COL_STATUS_TURMA):
         if col not in turmas.columns:
-            raise ValueError(f"Coluna obrigatória ausente no cronograma: {col}")
+            raise ValueError(f"Coluna obrigatória ausente no cronograma de turmas: {col}")
     if COL_DATA_TURMA not in turmas.columns:
         turmas[COL_DATA_TURMA] = pd.NaT
     turmas[COL_VINCULOS] = 0
-    turmas["_LOCALIDADE_NORM"] = turmas[COL_LOCALIDADE].apply(sanitize_string)
+    turmas["_LOCALIDADE_NORM"] = turmas[COL_TURMA_LOCALIDADE].apply(sanitize_string)
     turmas["_STATUS_ENTRADA"] = turmas[COL_STATUS_TURMA].apply(sanitize_string)
     turmas["_HISTORICO"] = turmas.apply(_is_historical, axis=1)
     turmas["_ELEGIVEL_DATA"] = turmas.apply(lambda r: _is_elegivel_por_data(r, amanha), axis=1)
@@ -89,23 +91,23 @@ def _prepare_turmas(df: pd.DataFrame, amanha: pd.Timestamp) -> pd.DataFrame:
 
 def _prepare_colaboradores(df: pd.DataFrame) -> pd.DataFrame:
     cols = df.copy()
-    for col in (COL_ID_COLABORADOR, COL_LOCALIDADE):
-        if col not in cols.columns:
-            raise ValueError(f"Coluna obrigatória ausente no controle nominal: {col}")
-    if COL_CODIGO_TURMA not in cols.columns:
-        cols[COL_CODIGO_TURMA] = pd.NA
-    if COL_NOME_COLABORADOR not in cols.columns:
-        cols[COL_NOME_COLABORADOR] = ""
-    cols["_LOCALIDADE_NORM"] = cols[COL_LOCALIDADE].apply(sanitize_string)
+    if COL_NOME_COMPLETO not in cols.columns:
+        raise ValueError(f"Coluna obrigatória ausente no controle nominal: {COL_NOME_COMPLETO}")
+    if COL_CODIGO_TURMA_NOMINAL not in cols.columns:
+        cols[COL_CODIGO_TURMA_NOMINAL] = pd.NA
+    cols[COL_LOCALIDADE_USADA] = cols.apply(resolve_localidade_colaborador, axis=1)
+    cols["_LOCALIDADE_NORM"] = cols[COL_LOCALIDADE_USADA].apply(sanitize_string)
     return cols
 
 
 def _count_vinculos(turmas: pd.DataFrame, colaboradores: pd.DataFrame) -> dict[str, int]:
     counts: dict[str, int] = {}
-    for codigo in colaboradores[COL_CODIGO_TURMA].dropna().unique():
+    for codigo in colaboradores[COL_CODIGO_TURMA_NOMINAL].dropna().unique():
         key = str(codigo).strip()
         if key:
-            counts[key] = int((colaboradores[COL_CODIGO_TURMA].astype(str).str.strip() == key).sum())
+            counts[key] = int(
+                (colaboradores[COL_CODIGO_TURMA_NOMINAL].astype(str).str.strip() == key).sum()
+            )
     return counts
 
 
@@ -135,16 +137,10 @@ def _find_melhor_turma(
     turmas: pd.DataFrame,
     raio_max_km: float,
 ) -> tuple[str, float, str] | None:
-    """
-    Seleciona a turma geograficamente mais próxima do colaborador.
-
-    Critério: menor distância (km); desempate por menor ocupação atual.
-    Retorna (codigo_turma, distancia_km, metodo) ou None.
-    """
     candidatos: list[tuple[str, float, int]] = []
 
     for _, turma in turmas.iterrows():
-        distancia = distance_between_localities(localidade_colaborador, turma[COL_LOCALIDADE])
+        distancia = distance_between_localities(localidade_colaborador, turma[COL_TURMA_LOCALIDADE])
         if distancia is None or distancia > raio_max_km:
             continue
         codigo = str(turma[COL_CODIGO_TURMA]).strip()
@@ -174,18 +170,17 @@ def _vincular_colaboradores(
     turmas = _update_turma_status_inplace(turmas, cols)
 
     for idx, row in cols.iterrows():
-        codigo_atual = row.get(COL_CODIGO_TURMA)
-        if pd.notna(codigo_atual) and str(codigo_atual).strip():
+        codigo_atual = row.get(COL_CODIGO_TURMA_NOMINAL)
+        if has_vinculo(codigo_atual):
             continue
 
-        localidade = row.get(COL_LOCALIDADE)
-        if pd.isna(localidade) or not str(localidade).strip():
+        localidade = row.get(COL_LOCALIDADE_USADA)
+        if not has_text(localidade):
             pendentes.append(
                 {
-                    COL_ID_COLABORADOR: row[COL_ID_COLABORADOR],
-                    COL_NOME_COLABORADOR: row.get(COL_NOME_COLABORADOR, ""),
-                    COL_LOCALIDADE: localidade,
-                    COL_MOTIVO_PENDENCIA: "Localidade ausente ou inválida",
+                    COL_NOME_COMPLETO: row[COL_NOME_COMPLETO],
+                    COL_LOCALIDADE_USADA: localidade,
+                    COL_MOTIVO_PENDENCIA: "Localidade ausente em PCI e SUAREA",
                 }
             )
             continue
@@ -196,9 +191,8 @@ def _vincular_colaboradores(
         if melhor is None:
             pendentes.append(
                 {
-                    COL_ID_COLABORADOR: row[COL_ID_COLABORADOR],
-                    COL_NOME_COLABORADOR: row.get(COL_NOME_COLABORADOR, ""),
-                    COL_LOCALIDADE: localidade,
+                    COL_NOME_COMPLETO: row[COL_NOME_COMPLETO],
+                    COL_LOCALIDADE_USADA: localidade,
                     COL_MOTIVO_PENDENCIA: (
                         f"Sem turma AGENDADA futura no raio de {raio_max_km:.0f} km "
                         f"(elegíveis a partir de {amanha.strftime('%d/%m/%Y')})"
@@ -213,9 +207,8 @@ def _vincular_colaboradores(
         if turma_idx.empty:
             pendentes.append(
                 {
-                    COL_ID_COLABORADOR: row[COL_ID_COLABORADOR],
-                    COL_NOME_COLABORADOR: row.get(COL_NOME_COLABORADOR, ""),
-                    COL_LOCALIDADE: localidade,
+                    COL_NOME_COMPLETO: row[COL_NOME_COMPLETO],
+                    COL_LOCALIDADE_USADA: localidade,
                     COL_MOTIVO_PENDENCIA: "Turma candidata não encontrada após vinculação",
                 }
             )
@@ -226,15 +219,14 @@ def _vincular_colaboradores(
         if vinculos >= MAX_VINCULOS:
             pendentes.append(
                 {
-                    COL_ID_COLABORADOR: row[COL_ID_COLABORADOR],
-                    COL_NOME_COLABORADOR: row.get(COL_NOME_COLABORADOR, ""),
-                    COL_LOCALIDADE: localidade,
+                    COL_NOME_COMPLETO: row[COL_NOME_COMPLETO],
+                    COL_LOCALIDADE_USADA: localidade,
                     COL_MOTIVO_PENDENCIA: "Turma atingiu capacidade máxima",
                 }
             )
             continue
 
-        cols.at[idx, COL_CODIGO_TURMA] = codigo_turma
+        cols.at[idx, COL_CODIGO_TURMA_NOMINAL] = codigo_turma
         turmas.at[t_idx, COL_VINCULOS] = vinculos + 1
         has_date = pd.notna(parse_date(turmas.at[t_idx, COL_DATA_TURMA]))
         novo_status = _status_from_count(vinculos + 1, has_date)
@@ -243,15 +235,16 @@ def _vincular_colaboradores(
 
         registro = {
             COL_CODIGO_TURMA: codigo_turma,
-            COL_ID_COLABORADOR: row[COL_ID_COLABORADOR],
-            COL_LOCALIDADE: localidade,
+            COL_NOME_COMPLETO: row[COL_NOME_COMPLETO],
+            COL_LOCALIDADE_USADA: localidade,
+            COL_TURMA_LOCALIDADE: turmas.at[t_idx, COL_TURMA_LOCALIDADE],
             "MÉTODO VINCULAÇÃO": metodo,
             "DISTÂNCIA KM": round(distancia, 2),
             COL_STATUS_TURMA: novo_status,
         }
         saneamento.append(registro)
         audit_log.append(
-            f"Vinculado {row[COL_ID_COLABORADOR]} -> turma {codigo_turma} "
+            f"Vinculado {row[COL_NOME_COMPLETO]} -> turma {codigo_turma} "
             f"({metodo}, {distancia:.1f} km)"
         )
 
@@ -270,6 +263,7 @@ def run_engine(
     turmas = _prepare_turmas(cronograma_turmas, amanha)
     colaboradores = _prepare_colaboradores(controle_nominal)
 
+    audit_log.append("Localidade do colaborador: LOCAL DO BRIGADISTA - PCI, fallback SUAREA")
     audit_log.append(
         f"Filtro de data: apenas turmas com data >= {amanha.strftime('%d/%m/%Y')} "
         f"ou sem data definida"
@@ -278,15 +272,14 @@ def run_engine(
         f"Filtro de status: apenas turmas com STATUS DA TURMA = {STATUS_AGENDADO}"
     )
 
-    # Preservar vínculos já existentes em turmas históricas
-    for idx, row in colaboradores.iterrows():
-        codigo = row.get(COL_CODIGO_TURMA)
-        if pd.isna(codigo) or not str(codigo).strip():
+    for _, row in colaboradores.iterrows():
+        codigo = row.get(COL_CODIGO_TURMA_NOMINAL)
+        if not has_vinculo(codigo):
             continue
         turma_match = turmas[turmas[COL_CODIGO_TURMA].astype(str).str.strip() == str(codigo).strip()]
         if not turma_match.empty and turma_match.iloc[0]["_HISTORICO"]:
             audit_log.append(
-                f"Preservado vinculo historico: {row[COL_ID_COLABORADOR]} -> {codigo}"
+                f"Preservado vinculo historico: {row[COL_NOME_COMPLETO]} -> {codigo}"
             )
 
     colaboradores, saneamento_rows, pendente_rows = _vincular_colaboradores(
@@ -304,8 +297,9 @@ def run_engine(
         saneamento_df = pd.DataFrame(
             columns=[
                 COL_CODIGO_TURMA,
-                COL_ID_COLABORADOR,
-                COL_LOCALIDADE,
+                COL_NOME_COMPLETO,
+                COL_LOCALIDADE_USADA,
+                COL_TURMA_LOCALIDADE,
                 "MÉTODO VINCULAÇÃO",
                 "DISTÂNCIA KM",
                 COL_STATUS_TURMA,
@@ -315,12 +309,10 @@ def run_engine(
     pendentes_df = pd.DataFrame(pendente_rows)
     if pendentes_df.empty:
         pendentes_df = pd.DataFrame(
-            columns=[COL_ID_COLABORADOR, COL_NOME_COLABORADOR, COL_LOCALIDADE, COL_MOTIVO_PENDENCIA]
+            columns=[COL_NOME_COMPLETO, COL_LOCALIDADE_USADA, COL_MOTIVO_PENDENCIA]
         )
 
-    turmas_audit = turmas_final[
-        [c for c in turmas_final.columns if not c.startswith("_")]
-    ].copy()
+    turmas_audit = turmas_final[[c for c in turmas_final.columns if not c.startswith("_")]].copy()
 
     return EngineResult(
         colaboradores=cols_final,
@@ -337,9 +329,9 @@ def validate_conservation(
     result: EngineResult,
 ) -> tuple[bool, str]:
     total_input = len(input_colaboradores)
-    vinculados = int(result.colaboradores[COL_CODIGO_TURMA].apply(has_vinculo).sum())
+    vinculados = int(result.colaboradores[COL_CODIGO_TURMA_NOMINAL].apply(has_vinculo).sum())
     pendentes = len(result.pendentes)
-    sem_vinculo = int((~result.colaboradores[COL_CODIGO_TURMA].apply(has_vinculo)).sum())
+    sem_vinculo = int((~result.colaboradores[COL_CODIGO_TURMA_NOMINAL].apply(has_vinculo)).sum())
     total_output = vinculados + pendentes
 
     if sem_vinculo != pendentes:

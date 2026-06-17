@@ -12,19 +12,27 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 KNOWLEDGE_BASE_DIR = PROJECT_ROOT / "knowledge-base"
 OUTPUTS_DIR = PROJECT_ROOT / "outputs"
 
-CONTROLE_NOMINAL_FILE = "Controle Geral_NR23.xlsx"
-CRONOGRAMA_TURMAS_FILE = "cronograma_turmas.xlsx"
+CONTROLE_GERAL_FILE = "Controle Geral_NR23.xlsx"
 OUTPUT_FILE = "NR23_SANEADO_2026.xlsx"
 
+SHEET_CONTROLE_NOMINAL = "NR23 Controle Nominal"
+SHEET_CRONOGRAMA = "Cronograma de Turmas"
+
+# Aba NR23 Controle Nominal
+COL_NOME_COMPLETO = "NOME COMPLETO"
+COL_CODIGO_TURMA_NOMINAL = "NR 23 CÓDIGO DA TURMA"
+COL_LOCAL_PCI = "LOCAL DO BRIGADISTA - PCI"
+COL_SUAREA = "SUAREA"
+
+# Aba Cronograma de Turmas
 COL_CODIGO_TURMA = "CÓDIGO DA TURMA"
-COL_LOCALIDADE = "LOCALIDADE"
+COL_TURMA_LOCALIDADE = "TURMA /LOCALIDADE"
 COL_STATUS_TURMA = "STATUS DA TURMA"
 COL_DATA_TURMA = "DATA"
-COL_ID_COLABORADOR = "ID COLABORADOR"
-COL_NOME_COLABORADOR = "NOME"
 COL_ACAO_RECOMENDADA = "AÇÃO RECOMENDADA"
 COL_VINCULOS = "VÍNCULOS REAIS"
 COL_MOTIVO_PENDENCIA = "MOTIVO PENDÊNCIA"
+COL_LOCALIDADE_USADA = "LOCALIDADE USADA"
 
 HISTORICAL_CUTOFF = pd.Timestamp("2026-06-12")
 MIN_VINCULOS = 10
@@ -43,15 +51,34 @@ def sanitize_string(value: object) -> str:
     return text
 
 
+def has_text(value: object) -> bool:
+    if value is None or (isinstance(value, float) and pd.isna(value)):
+        return False
+    return bool(str(value).strip())
+
+
+def has_vinculo(value: object) -> bool:
+    return has_text(value)
+
+
+def resolve_localidade_colaborador(row: pd.Series) -> object:
+    """Prioriza LOCAL DO BRIGADISTA - PCI; fallback para SUAREA."""
+    if has_text(row.get(COL_LOCAL_PCI)):
+        return row[COL_LOCAL_PCI]
+    if has_text(row.get(COL_SUAREA)):
+        return row[COL_SUAREA]
+    return pd.NA
+
+
 def ensure_directories() -> None:
     KNOWLEDGE_BASE_DIR.mkdir(parents=True, exist_ok=True)
     OUTPUTS_DIR.mkdir(parents=True, exist_ok=True)
 
 
-def resolve_input(path: Path | None, default_name: str) -> Path:
+def resolve_input(path: Path | None) -> Path:
     if path is not None:
         return path.expanduser().resolve()
-    return KNOWLEDGE_BASE_DIR / default_name
+    return KNOWLEDGE_BASE_DIR / CONTROLE_GERAL_FILE
 
 
 def resolve_output(path: Path | None) -> Path:
@@ -66,17 +93,30 @@ def load_excel(path: Path, sheet_name: str | int = 0) -> pd.DataFrame:
     return pd.read_excel(path, sheet_name=sheet_name, engine="openpyxl")
 
 
+def load_controle_geral(path: Path) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Carrega as abas de colaboradores e cronograma do arquivo único."""
+    if not path.exists():
+        raise FileNotFoundError(f"Arquivo não encontrado: {path}")
+
+    workbook = pd.ExcelFile(path, engine="openpyxl")
+    missing = [s for s in (SHEET_CONTROLE_NOMINAL, SHEET_CRONOGRAMA) if s not in workbook.sheet_names]
+    if missing:
+        abas = ", ".join(workbook.sheet_names)
+        raise ValueError(
+            f"Abas ausentes em '{path.name}': {', '.join(missing)}. "
+            f"Abas encontradas: {abas}"
+        )
+
+    controle = pd.read_excel(workbook, sheet_name=SHEET_CONTROLE_NOMINAL)
+    cronograma = pd.read_excel(workbook, sheet_name=SHEET_CRONOGRAMA)
+    return controle, cronograma
+
+
 def save_excel(path: Path, sheets: dict[str, pd.DataFrame]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with pd.ExcelWriter(path, engine="openpyxl") as writer:
         for sheet_name, frame in sheets.items():
             frame.to_excel(writer, sheet_name=sheet_name, index=False)
-
-
-def has_vinculo(value: object) -> bool:
-    if value is None or (isinstance(value, float) and pd.isna(value)):
-        return False
-    return bool(str(value).strip())
 
 
 def parse_date(value: object) -> pd.Timestamp | pd.NaT:

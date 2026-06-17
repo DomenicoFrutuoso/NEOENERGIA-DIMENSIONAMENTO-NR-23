@@ -39,12 +39,13 @@ pip install -r requirements.txt
 
 ## Uso rápido
 
-### 1. Preparar os arquivos de entrada
+### 1. Preparar o arquivo de entrada
 
-Coloque as planilhas em `knowledge-base/`:
+Coloque o arquivo em `knowledge-base/`:
 
-- `Controle Geral_NR23.xlsx` — colaboradores e localidades
-- `cronograma_turmas.xlsx` — turmas, datas e status
+- **`Controle Geral_NR23.xlsx`** — arquivo único com duas abas:
+  - `NR23 Controle Nominal` — colaboradores
+  - `Cronograma de Turmas` — turmas
 
 Para gerar dados de exemplo para testes locais:
 
@@ -64,11 +65,8 @@ python -m src.main saneamento
 # Alterar raio máximo de vinculação geográfica (padrão: 50 km)
 python -m src.main saneamento --raio-max 80
 
-# Caminhos customizados
-python -m src.main saneamento \
-  --controle caminho/controle.xlsx \
-  --cronograma caminho/cronograma.xlsx \
-  --output caminho/saida.xlsx
+# Caminho alternativo do arquivo de entrada
+python -m src.main saneamento --arquivo "caminho\Controle Geral_NR23.xlsx" --output "caminho\saida.xlsx"
 
 # Ver informações do engine
 python -m src.main info
@@ -80,33 +78,37 @@ O arquivo `outputs/NR23_SANEADO_2026.xlsx` contém as abas:
 
 | Aba | Conteúdo |
 | --- | --- |
-| `COLABORADORES_SANEADOS` | Colaboradores com vínculos atualizados |
-| `CRONOGRAMA_ATUALIZADO` | Turmas com status e contagem de vínculos |
+| `NR23 Controle Nominal` | Colaboradores com `NR 23 CÓDIGO DA TURMA` preenchido |
+| `Cronograma de Turmas` | Turmas com status e contagem de vínculos |
 | `SANEAMENTO_TURMAS_NR23` | Auditoria de turmas (debug para RH) |
 | `VINCULACOES_REALIZADAS` | Log de cada vinculação (método e distância) |
 | `PENDENTES_DIMENSIONAMENTO_NR23` | Colaboradores sem turma atribuída |
 
 ---
 
-## Formato das planilhas de entrada
+## Formato do arquivo de entrada
 
 ### `Controle Geral_NR23.xlsx`
 
+#### Aba `NR23 Controle Nominal`
+
 | Coluna | Obrigatória | Descrição |
 | --- | --- | --- |
-| `ID COLABORADOR` | Sim | Identificador único do colaborador |
-| `LOCALIDADE` | Sim | Cidade/base do colaborador |
-| `NOME` | Não | Nome do colaborador |
-| `CÓDIGO DA TURMA` | Não | Vínculo existente (se já houver) |
+| `NOME COMPLETO` | Sim | Nome do colaborador |
+| `NR 23 CÓDIGO DA TURMA` | Sim | Vazio = será dimensionado pelo engine |
+| `LOCAL DO BRIGADISTA - PCI` | Não* | Localidade principal para vinculação |
+| `SUAREA` | Não* | Usada quando PCI estiver vazio |
 
-### `cronograma_turmas.xlsx`
+\* Pelo menos uma das colunas de localidade deve estar preenchida.
+
+#### Aba `Cronograma de Turmas`
 
 | Coluna | Obrigatória | Descrição |
 | --- | --- | --- |
 | `CÓDIGO DA TURMA` | Sim | Identificador único da turma |
-| `LOCALIDADE` | Sim | Cidade/base da turma |
+| `TURMA /LOCALIDADE` | Sim | Localidade da turma (match geográfico) |
 | `DATA` | Não | Data prevista do treinamento |
-| `STATUS DA TURMA` | Sim | Status inicial (atualizado pelo engine) |
+| `STATUS DA TURMA` | Sim | Apenas `AGENDADO` recebe novos vínculos |
 
 ---
 
@@ -129,6 +131,12 @@ O status é calculado com base na contagem exata de vínculos por `CÓDIGO DA TU
 | 1 a 9 | `ABAIXO DO MÍNIMO` | Consolidar ou convidar colaboradores |
 | 10 a 20 | `OK` (com data) ou `PLANEJAR DATA` (sem data) | Manter cronograma ou definir data |
 | > 20 | `ACIMA DO LIMITE` | Dividir excedente |
+
+### Localidade do colaborador
+
+1. Usa `LOCAL DO BRIGADISTA - PCI` quando preenchido
+2. Se PCI estiver vazio, usa `SUAREA`
+3. Correlaciona com `TURMA /LOCALIDADE` do cronograma (match exato ou proximidade geográfica)
 
 ### Vinculação geográfica
 
@@ -171,9 +179,8 @@ Nenhum ID pode desaparecer no processamento.
 ```text
 NEOENERGIA-DIMENSIONAMENTO-NR-23/
 │
-├── knowledge-base/             # Entrada — planilhas .xlsx
-│   ├── Controle Geral_NR23.xlsx
-│   └── cronograma_turmas.xlsx
+├── knowledge-base/             # Entrada
+│   └── Controle Geral_NR23.xlsx  # Abas: NR23 Controle Nominal + Cronograma de Turmas
 │
 ├── outputs/                    # Saída — artefatos processados
 │   └── NR23_SANEADO_2026.xlsx

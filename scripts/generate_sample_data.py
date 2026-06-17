@@ -1,4 +1,4 @@
-"""Gera planilhas de exemplo para desenvolvimento e testes locais."""
+"""Gera planilha de exemplo com a estrutura real do Controle Geral_NR23."""
 
 from __future__ import annotations
 
@@ -10,16 +10,21 @@ import pandas as pd
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from src.utils import CONTROLE_NOMINAL_FILE, KNOWLEDGE_BASE_DIR, ensure_directories
+from src.utils import (
+    CONTROLE_GERAL_FILE,
+    KNOWLEDGE_BASE_DIR,
+    SHEET_CONTROLE_NOMINAL,
+    SHEET_CRONOGRAMA,
+    ensure_directories,
+)
 
 ensure_directories()
 
-
 controle = pd.DataFrame(
     {
-        "ID COLABORADOR": [f"COL-{i:04d}" for i in range(1, 46)],
-        "NOME": [f"Colaborador {i}" for i in range(1, 46)],
-        "LOCALIDADE": (
+        "NOME COMPLETO": [f"Colaborador {i}" for i in range(1, 46)],
+        "NR 23 CÓDIGO DA TURMA": [pd.NA] * 45,
+        "LOCAL DO BRIGADISTA - PCI": (
             ["SALVADOR"] * 8
             + ["RECIFE"] * 7
             + ["NATAL"] * 6
@@ -27,13 +32,12 @@ controle = pd.DataFrame(
             + ["CAMACARI"] * 4
             + ["OLINDA"] * 5
             + ["MOSSORO"] * 4
-            + ["CARUARU"] * 3
-            + ["TERESINA"] * 3
+            + [pd.NA] * 6
         ),
-        "CÓDIGO DA TURMA": [pd.NA] * 45,
+        "SUAREA": [pd.NA] * 39 + ["CARUARU", "TERESINA", "TERESINA", "CARUARU", "TERESINA", "TERESINA"],
     }
 )
-controle.loc[0, "CÓDIGO DA TURMA"] = "TURMA-HIST-001"
+controle.loc[0, "NR 23 CÓDIGO DA TURMA"] = "TURMA-HIST-001"
 
 cronograma = pd.DataFrame(
     {
@@ -47,7 +51,7 @@ cronograma = pd.DataFrame(
             "TURMA-2026-005",
             "TURMA-2026-006",
         ],
-        "LOCALIDADE": [
+        "TURMA /LOCALIDADE": [
             "SALVADOR",
             "SALVADOR",
             "SALVADOR",
@@ -80,11 +84,11 @@ cronograma = pd.DataFrame(
     }
 )
 
-controle_path = KNOWLEDGE_BASE_DIR / CONTROLE_NOMINAL_FILE
-cronograma_path = KNOWLEDGE_BASE_DIR / "cronograma_turmas.xlsx"
+output_path = KNOWLEDGE_BASE_DIR / CONTROLE_GERAL_FILE
+with pd.ExcelWriter(output_path, engine="openpyxl") as writer:
+    controle.to_excel(writer, sheet_name=SHEET_CONTROLE_NOMINAL, index=False)
+    cronograma.to_excel(writer, sheet_name=SHEET_CRONOGRAMA, index=False)
 
-controle.to_excel(controle_path, index=False, engine="openpyxl")
-cronograma.to_excel(cronograma_path, index=False, engine="openpyxl")
-
-print(f"Gerado: {controle_path}")
-print(f"Gerado: {cronograma_path}")
+print(f"Gerado: {output_path}")
+print(f"  Aba: {SHEET_CONTROLE_NOMINAL} ({len(controle)} linhas)")
+print(f"  Aba: {SHEET_CRONOGRAMA} ({len(cronograma)} linhas)")

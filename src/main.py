@@ -12,11 +12,11 @@ from rich.table import Table
 
 from src.engine import run_engine, validate_conservation
 from src.utils import (
-    CONTROLE_NOMINAL_FILE,
-    CRONOGRAMA_TURMAS_FILE,
+    COL_CODIGO_TURMA_NOMINAL,
+    CONTROLE_GERAL_FILE,
     ensure_directories,
     has_vinculo,
-    load_excel,
+    load_controle_geral,
     resolve_input,
     resolve_output,
     save_excel,
@@ -37,15 +37,10 @@ def saneamento(
         "--raio-max",
         help="Raio máximo (km) para vinculação geográfica por proximidade.",
     ),
-    controle: Optional[Path] = typer.Option(
+    arquivo: Optional[Path] = typer.Option(
         None,
-        "--controle",
-        help="Caminho alternativo para Controle Geral_NR23.xlsx.",
-    ),
-    cronograma: Optional[Path] = typer.Option(
-        None,
-        "--cronograma",
-        help="Caminho alternativo para cronograma_turmas.xlsx.",
+        "--arquivo",
+        help=f"Caminho alternativo para {CONTROLE_GERAL_FILE}.",
     ),
     output: Optional[Path] = typer.Option(
         None,
@@ -57,21 +52,20 @@ def saneamento(
     """Executa o pipeline completo de saneamento e dimensionamento NR-23."""
     ensure_directories()
 
-    controle_path = resolve_input(controle, CONTROLE_NOMINAL_FILE)
-    cronograma_path = resolve_input(cronograma, CRONOGRAMA_TURMAS_FILE)
+    arquivo_path = resolve_input(arquivo)
     output_path = resolve_output(output)
 
     console.print(Panel.fit("[bold cyan]NR23 CLI Engine[/bold cyan]\nSaneamento em execução..."))
 
     try:
-        df_controle = load_excel(controle_path)
-        df_cronograma = load_excel(cronograma_path)
-    except FileNotFoundError as exc:
+        df_controle, df_cronograma = load_controle_geral(arquivo_path)
+    except (FileNotFoundError, ValueError) as exc:
         console.print(f"[bold red]Erro:[/bold red] {exc}")
         raise typer.Exit(code=1) from exc
 
-    console.print(f"  Controle nominal: [green]{controle_path.name}[/green] ({len(df_controle)} linhas)")
-    console.print(f"  Cronograma turmas: [green]{cronograma_path.name}[/green] ({len(df_cronograma)} linhas)")
+    console.print(f"  Arquivo: [green]{arquivo_path.name}[/green]")
+    console.print(f"    Aba colaboradores: {len(df_controle)} linhas")
+    console.print(f"    Aba cronograma: {len(df_cronograma)} linhas")
     console.print(f"  Raio máximo: [yellow]{raio_max:.0f} km[/yellow]")
 
     result = run_engine(df_controle, df_cronograma, raio_max_km=raio_max)
@@ -80,10 +74,13 @@ def saneamento(
     status_color = "green" if ok else "red"
     console.print(f"  Validação: [{status_color}]{msg}[/{status_color}]")
 
-    vinculacoes = int(result.colaboradores["CÓDIGO DA TURMA"].apply(has_vinculo).sum())
+    vinculacoes = int(result.colaboradores[COL_CODIGO_TURMA_NOMINAL].apply(has_vinculo).sum())
+    sem_turma_antes = int((~df_controle[COL_CODIGO_TURMA_NOMINAL].apply(has_vinculo)).sum())
+    novas = len(result.vinculacoes)
+
     sheets = {
-        "COLABORADORES_SANEADOS": result.colaboradores,
-        "CRONOGRAMA_ATUALIZADO": result.turmas,
+        "NR23 Controle Nominal": result.colaboradores,
+        "Cronograma de Turmas": result.turmas,
         "SANEAMENTO_TURMAS_NR23": result.saneamento_turmas,
         "VINCULACOES_REALIZADAS": result.vinculacoes,
         "PENDENTES_DIMENSIONAMENTO_NR23": result.pendentes,
@@ -93,8 +90,10 @@ def saneamento(
     table = Table(title="Resumo do Processamento")
     table.add_column("Métrica", style="cyan")
     table.add_column("Valor", justify="right", style="bold")
-    table.add_row("Colaboradores processados", str(len(df_controle)))
-    table.add_row("Vinculados", str(int(vinculacoes)))
+    table.add_row("Colaboradores no controle", str(len(df_controle)))
+    table.add_row("Sem turma (entrada)", str(sem_turma_antes))
+    table.add_row("Novas vinculações", str(novas))
+    table.add_row("Com turma (saída)", str(vinculacoes))
     table.add_row("Pendentes", str(len(result.pendentes)))
     table.add_row("Turmas no cronograma", str(len(result.turmas)))
     table.add_row("Arquivo gerado", str(output_path))
@@ -117,13 +116,20 @@ def info() -> None:
     console.print(
         Panel(
             "[bold]NR23 CLI Engine[/bold]\n\n"
-            "Entrada (knowledge-base/):\n"
-            "  • Controle Geral_NR23.xlsx — colaboradores e localidades\n"
-            "  • cronograma_turmas.xlsx — turmas, datas e status\n\n"
+            f"Entrada (knowledge-base/{CONTROLE_GERAL_FILE}):\n"
+            "  • Aba [cyan]NR23 Controle Nominal[/cyan] — colaboradores\n"
+            "    - NOME COMPLETO\n"
+            "    - NR 23 CÓDIGO DA TURMA (vazio = a dimensionar)\n"
+            "    - LOCAL DO BRIGADISTA - PCI (localidade principal)\n"
+            "    - SUAREA (fallback de localidade)\n"
+            "  • Aba [cyan]Cronograma de Turmas[/cyan] — turmas\n"
+            "    - CÓDIGO DA TURMA\n"
+            "    - TURMA /LOCALIDADE\n"
+            "    - STATUS DA TURMA (apenas AGENDADO recebe vínculos)\n\n"
             "Saída (outputs/):\n"
-            "  • NR23_SANEADO_2026.xlsx — abas de saneamento e auditoria\n\n"
-            "Regras de capacidade: mín. 10 / máx. 20 colaboradores por turma.\n"
-            "Vinculação: match exato de localidade → fallback Haversine (--raio-max).",
+            "  • NR23_SANEADO_2026.xlsx\n\n"
+            "Regras: mín. 10 / máx. 20 por turma; proximidade geográfica; "
+            "turmas futuras (>= amanhã).",
             title="Informações",
             border_style="blue",
         )
